@@ -10,18 +10,14 @@
  * ----------------------------------------------------------------------------------------------------
  */
 #include <stdio.h>
-#include <string.h>
 
 #include "port_common.h"
 
 #include "wizchip_conf.h"
 #include "w5x00_spi.h"
 
-#include "mqtt_interface.h"
-#include "MQTTClient.h"
-
-#include "timer.h"
-#include "time.h"
+#include "httpServer.h"
+#include "index.h"
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -35,20 +31,7 @@
 #define ETHERNET_BUF_MAX_SIZE (1024 * 2)
 
 /* Socket */
-#define SOCKET_MQTT 0
-
-/* Port */
-#define PORT_MQTT 1883
-
-/* Timeout */
-#define DEFAULT_TIMEOUT 1000 // 1 second
-
-/* MQTT */
-#define MQTT_CLIENT_ID "rpi-pico"
-#define MQTT_USERNAME "wiznet"
-#define MQTT_PASSWORD "0123456789"
-#define MQTT_SUBSCRIBE_TOPIC "subscribe_topic"
-#define MQTT_KEEP_ALIVE 60 // 60 milliseconds
+#define HTTP_SOCKET_MAX_NUM 4
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -66,20 +49,18 @@ static wiz_NetInfo g_net_info =
         .dhcp = NETINFO_STATIC                       // DHCP enable/disable
 };
 
-/* MQTT */
-static uint8_t g_mqtt_send_buf[ETHERNET_BUF_MAX_SIZE] = {
+/* HTTP */
+static uint8_t g_http_send_buf[ETHERNET_BUF_MAX_SIZE] = {
     0,
 };
-static uint8_t g_mqtt_recv_buf[ETHERNET_BUF_MAX_SIZE] = {
+static uint8_t g_http_recv_buf[ETHERNET_BUF_MAX_SIZE] = {
     0,
 };
-static uint8_t g_mqtt_broker_ip[4] = {192, 168, 11, 3};
-static Network g_mqtt_network;
-static MQTTClient g_mqtt_client;
-static MQTTPacket_connectData g_mqtt_packet_connect_data = MQTTPacket_connectData_initializer;
+static uint8_t g_http_socket_num_list[HTTP_SOCKET_MAX_NUM] = {0, 1, 2, 3};
 
-/* Timer  */
-static void repeating_timer_callback(void);
+uint16_t LED_pin[10] = {
+    19,
+};
 
 /**
  * ----------------------------------------------------------------------------------------------------
@@ -89,9 +70,6 @@ static void repeating_timer_callback(void);
 /* Clock */
 static void set_clock_khz(void);
 
-/* MQTT */
-static void message_arrived(MessageData *msg_data);
-
 /**
  * ----------------------------------------------------------------------------------------------------
  * Main
@@ -100,12 +78,11 @@ static void message_arrived(MessageData *msg_data);
 int main()
 {
     /* Initialize */
-    int32_t retval = 0;
+    uint8_t i = 0;
 
     set_clock_khz();
 
     stdio_init_all();
-
     wizchip_spi_initialize();
     wizchip_cris_initialize();
 
@@ -113,71 +90,28 @@ int main()
     wizchip_initialize();
     wizchip_check();
 
-    wizchip_1ms_timer_initialize(repeating_timer_callback);
+    httpServer_init(g_http_send_buf, g_http_recv_buf, HTTP_SOCKET_MAX_NUM, g_http_socket_num_list);
 
+    gpio_init(LED_pin[0]);
+    gpio_set_dir(LED_pin[0], GPIO_OUT);
+    
     network_initialize(g_net_info);
-
     /* Get network information */
     print_network_information(g_net_info);
 
-    NewNetwork(&g_mqtt_network, SOCKET_MQTT);
+    /* Register web page */
+    reg_httpServer_webContent((uint8_t *)"index.html", _acindex);
 
-    retval = ConnectNetwork(&g_mqtt_network, g_mqtt_broker_ip, PORT_MQTT);
+    reg_httpServer_cbfunc(wizchip_reset, NULL);
 
-    if (retval != 1)
-    {
-        printf(" Network connect failed\n");
-
-        while (1)
-            ;
-    }
-
-    /* Initialize MQTT client */
-    MQTTClientInit(&g_mqtt_client, &g_mqtt_network, DEFAULT_TIMEOUT, g_mqtt_send_buf, ETHERNET_BUF_MAX_SIZE, g_mqtt_recv_buf, ETHERNET_BUF_MAX_SIZE);
-
-    /* Connect to the MQTT broker */
-    g_mqtt_packet_connect_data.MQTTVersion = 3;
-    g_mqtt_packet_connect_data.cleansession = 1;
-    g_mqtt_packet_connect_data.willFlag = 0;
-    g_mqtt_packet_connect_data.keepAliveInterval = MQTT_KEEP_ALIVE;
-    g_mqtt_packet_connect_data.clientID.cstring = MQTT_CLIENT_ID;
-    g_mqtt_packet_connect_data.username.cstring = MQTT_USERNAME;
-    g_mqtt_packet_connect_data.password.cstring = MQTT_PASSWORD;
-
-    retval = MQTTConnect(&g_mqtt_client, &g_mqtt_packet_connect_data);
-
-    if (retval < 0)
-    {
-        printf(" MQTT connect failed : %d\n", retval);
-
-        while (1)
-            ;
-    }
-
-    printf(" MQTT connected\n");
-
-    /* Subscribe */
-    retval = MQTTSubscribe(&g_mqtt_client, MQTT_SUBSCRIBE_TOPIC, QOS0, message_arrived);
-
-    if (retval < 0)
-    {
-        printf(" Subscribe failed : %d\n", retval);
-
-        while (1)
-            ;
-    }
-
-    printf(" Subscribed\n");
-
+    
     /* Infinite loop */
     while (1)
     {
-        if ((retval = MQTTYield(&g_mqtt_client, g_mqtt_packet_connect_data.keepAliveInterval)) < 0)
+        /* Run HTTP server */
+        for (i = 0; i < HTTP_SOCKET_MAX_NUM; i++)
         {
-            printf(" Yield error : %d\n", retval);
-
-            while (1)
-                ;
+            httpServer_run(i);
         }
     }
 }
@@ -201,18 +135,4 @@ static void set_clock_khz(void)
         PLL_SYS_KHZ * 1000,                               // Input frequency
         PLL_SYS_KHZ * 1000                                // Output (must be same as no divider)
     );
-}
-
-/* MQTT */
-static void message_arrived(MessageData *msg_data)
-{
-    MQTTMessage *message = msg_data->message;
-
-    printf("%.*s", (uint32_t)message->payloadlen, (uint8_t *)message->payload);
-}
-
-/* Timer */
-static void repeating_timer_callback(void)
-{
-    MilliTimer_Handler();
 }

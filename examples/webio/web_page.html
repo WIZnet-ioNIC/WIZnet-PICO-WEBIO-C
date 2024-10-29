@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>w5x00 Web Server Network Info</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <style>
+        label { float: left; text-align: left; width: 50px; }
+        li { list-style: none; }
+    </style>
+    <script type="text/javascript">
+    /* basis */
+    function AJAX(url, callback)
+    {
+        var req = AJAX_init();
+        req.onreadystatechange = AJAX_processRequest;
+        
+        function AJAX_init() {
+            if (window.XMLHttpRequest) {
+                return new XMLHttpRequest();
+            } else if (window.ActiveXObject) {
+                return new ActiveXObject('Microsoft.XMLHTTP');
+            }
+        };
+        function AJAX_processRequest() {
+            if(req.readyState == 4) {
+                if(req.status == 200) {
+                alert('Request successful');
+                if(callback)
+                    callback(req.responseText);
+                }
+            }
+        };
+        this.doGet = function() {
+            req.open('GET', url, true);
+            req.send(null);
+        };
+        this.doPost = function(body) {
+            req.open('POST', url, true);
+            req.setRequestHeader('Content-Type',
+            'application/x-www-form-urlencoded');
+            req.setRequestHeader('ISAJAX','yes');
+            req.send(body);
+        };
+    };
+    function $(id){return document.getElementById(id);}
+    function $$(id){return document.getElementsByName(id);}
+    function $$_ie(tag, name){
+        if(!tag){tag='*';}
+        var elems=document.getElementsByTagName(tag);
+        var res=[];
+        for(var i=0;i<elems.length;i++){
+            att=elems[i].getAttribute('name');
+            if(att==name){
+                res.push(elems[i]);
+            }
+        }
+        return res;
+    }
+    function selset(id,val){
+        var o=$(id);
+        for(var i=0;i<o.options.length;i++){
+            if(i==val){
+                o.options[i].selected=true;
+                break;
+            }
+        }
+    }
+    function selset_name(name, val){
+        var o=$$(name);
+        for(var i=0;i<o.options.length;i++){
+            if(i==val){
+                o.options[i].selected=true;
+                break;
+            }
+        }
+    }
+
+    function NetinfoCallback(o) {
+        $('txtmac').value = o.mac;
+        $('txtip').value = o.ip;
+        $('txtgw').value = o.gw;
+        $('txtsn').value = o.sn;
+        $('txtdns').value = o.dns;
+    }
+
+    function getNetinfo() {
+        var oUpdate;
+        setTimeout(function() {
+            oUpdate = new AJAX('get_netinfo.cgi', function(t) {
+                try { eval(t); } catch (e) { alert(e); }
+            });
+            oUpdate.doGet();
+        }, 300);
+    }
+    function DioCallback(o) {
+        var pin = o.dio_p;
+        document.getElementById('txtdio_s' + pin).value = o.dio_s;
+        document.getElementById('txtdio_d' + pin).value = o.dio_d;
+    }
+
+    function getDio(o) {
+        var p = o.getAttribute('pin');
+        var oUpdate = new AJAX('get_dio' + p + '.cgi', function(t) {
+            try {
+                eval(t);
+            } catch (e) {
+                alert(e);
+            }
+        });
+        oUpdate.doGet();
+    }
+
+    function setDiostate(o) {
+        var p = o.getAttribute('pin');
+        var v = o.getAttribute('s');
+        var dout = new AJAX('set_diostate.cgi', function(t) {
+            try {
+                eval(t);
+            } catch (e) {
+                alert(e);
+            }
+        });
+        dout.doPost('pin=' + p + '&val=' + v);
+    }
+
+    function setDiodir(o) {
+        var p = o.getAttribute('pin');
+        var v = o.getAttribute('d');
+        var dout = new AJAX('set_diodir.cgi', function(t) {
+            try {
+                eval(t);
+            } catch (e) {
+                alert(e);
+            }
+        });
+        dout.doPost('pin=' + p + '&val=' + v);
+    }
+        
+    </script>
+</head>
+<body onload="getNetinfo();">
+    <h3>w5x00 Web Server Network Information</h3>
+    <ul>
+        <li><label for="txtmac">MAC:</label><input id="txtmac" name="mac" type="text" size="20" disabled="disabled"/></li>
+        <li><label for="txtip">IP:</label><input id="txtip" name="ip" type="text" size="20" disabled="disabled"/></li>
+        <li><label for="txtgw">GW:</label><input id="txtgw" name="gw" type="text" size="20" disabled="disabled"/></li>
+        <li><label for="txtsn">SN:</label><input id="txtsn" name="sn" type="text" size="20" disabled="disabled"/></li>
+        <li><label for="txtdns">DNS:</label><input id="txtdns" name="dns" type="text" size="20" disabled="disabled"/></li>
+    </ul>
+    <br>
+    <h3>w5x00 Web Server Digital I/O</h3>
+    <div>
+        <input type="button" value="LED On" pin="0" s="1" onclick="setDiostate(this);">
+        <input type="button" value="LED Off" pin="0" s="0" onclick="setDiostate(this);">
+    </div>
+</body>
+</html>

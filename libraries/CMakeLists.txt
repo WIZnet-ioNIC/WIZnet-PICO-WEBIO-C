@@ -167,3 +167,19 @@ target_include_directories(SNTP_FILES PUBLIC
         ${WIZNET_DIR}/Ethernet
         ${WIZNET_DIR}/Internet/SNTP
         )
+
+# WEBIO related library files
+add_library(WEBIO_FILES STATIC)
+
+target_sources(WEBIO_FILES PUBLIC
+        ${WIZNET_DIR}/../webio/userHandler.c
+)
+target_include_directories(WEBIO_FILES PUBLIC
+        ${WIZNET_DIR}/Ethernet
+        ${WIZNET_DIR}/../webio
+)
+target_link_libraries(WEBIO_FILES PRIVATE
+        ETHERNET_FILES
+        HTTPSERVER_FILES
+        pico_stdlib
+)
