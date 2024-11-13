@@ -76,8 +76,19 @@ static wiz_NetInfo g_net_info =
         .dhcp = NETINFO_STATIC                       // DHCP enable/disable
 };
 ```
+3. You need to modify the code in an existing library. Please make the following changes in the file httpUtil.c, which is located in the WIZnet-PICO-C/libraries/ioLibrary_Driver/Internet/httpServer/ directory.
 
+```cpp
+__attribute__((weak)) uint8_t predefined_get_cgi_processor(uint8_t * uri_name, uint8_t * buf, uint16_t * len)
+{
+	;
+}
 
+__attribute__((weak)) uint8_t predefined_set_cgi_processor(uint8_t * uri_name, uint8_t * uri, uint8_t * buf, uint16_t * en)
+{
+	;
+}
+```
 
 ## Step 4: Build
 

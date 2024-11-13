@@ -58,9 +58,15 @@ static uint8_t g_http_recv_buf[ETHERNET_BUF_MAX_SIZE] = {
 };
 static uint8_t g_http_socket_num_list[HTTP_SOCKET_MAX_NUM] = {0, 1, 2, 3};
 
+#if (DEVICE_BOARD_NAME == W55RP20_EVB_PICO)
 uint16_t LED_pin[10] = {
     19,
 };
+#else
+uint16_t LED_pin[10] = {
+    25,
+};
+#endif
 
 /**
  * ----------------------------------------------------------------------------------------------------
